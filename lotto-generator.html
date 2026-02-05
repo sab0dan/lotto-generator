@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lotto UK 6/59 – Smart Generator</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 20px;
+}
+h1 { font-size: 22px; }
+label { font-size: 16px; }
+input {
+  padding: 8px;
+  font-size: 16px;
+  width: 80px;
+}
+button {
+  padding: 10px 16px;
+  font-size: 16px;
+  margin-left: 10px;
+  cursor: pointer;
+}
+.line {
+  margin: 6px 0;
+  font-size: 18px;
+}
+.footer {
+  margin-top: 20px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+</style>
+</head>
+<body>
+
+<h1>🎯 Lotto UK 6/59 – Smart Generator</h1>
+
+<label>Ile linii?</label>
+<input type="number" id="count" value="10" min="1" max="50">
+<button onclick="generate()">Generuj</button>
+
+<div id="out"></div>
+
+<div class="footer">
+Offline • Bez kont • Lokalnie na Twoim urządzeniu
+</div>
+
+<script>
+function randomLine() {
+  let set = new Set();
+  while (set.size < 6) {
+    set.add(Math.floor(Math.random() * 59) + 1);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+function validLine(line) {
+  let high = line.filter(n => n > 31).length;
+  if (high < 3) return false;
+
+  for (let i = 0; i < line.length - 2; i++) {
+    if (line[i+1] === line[i] + 1 && line[i+2] === line[i] + 2)
+      return false;
+  }
+
+  let sum = line.reduce((a, b) => a + b, 0);
+  if (sum < 120 || sum > 230) return false;
+
+  return true;
+}
+
+function overlap(a, b) {
+  return a.filter(x => b.includes(x)).length;
+}
+
+function generate() {
+  const target = +document.getElementById("count").value;
+  const lines = [];
+  let attempts = 0;
+
+  while (lines.length < target && attempts < 20000) {
+    let l = randomLine();
+    if (!validLine(l)) { attempts++; continue; }
+
+    if (lines.some(existing => overlap(existing, l) > 2)) {
+      attempts++; continue;
+    }
+
+    lines.push(l);
+  }
+
+  const out = document.getElementById("out");
+  out.innerHTML = "";
+  lines.forEach((l, i) => {
+    out.innerHTML += `<div class="line">${i+1}. ${l.join(" – ")}</div>`;
+  });
+}
+</script>
+
+</body>
+</html>
