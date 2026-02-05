@@ -84,6 +84,8 @@
   <button onclick="copyLines()">Kopiuj</button>
   <button onclick="saveCurrent()">Zapisz</button>
   <button onclick="loadMyNumbers()">Wczytaj moje liczby</button>
+  <button onclick="loadMyNumbersPlusHedge()">Moje liczby + 5 hedge</button>
+
 </div>
 
 <div class="panel" style="margin-top:12px">
@@ -245,6 +247,41 @@ function loadMyNumbers() {
   lastGenerated = [MY_NUMBERS.slice().sort((a,b)=>a-b)];
   renderLines(lastGenerated, 0, "Moje liczby");
 }
+  function loadMyNumbersPlusHedge() {
+  const hedgeCount = 5;
+  const mode = "antiBirthday";
+
+  const lines = [];
+  const myLine = MY_NUMBERS.slice().sort((a,b)=>a-b);
+  lines.push(myLine);
+
+  let attempts = 0;
+  const maxAttempts = 60000;
+
+  // Hedge ma być różne od mojej linii i między sobą
+  // (max 2 wspólne liczby z moją, i max 2 między hedge)
+  const maxOverlapWithMy = 2;
+  const maxOverlapBetweenHedge = 2;
+
+  while (lines.length < (1 + hedgeCount) && attempts < maxAttempts) {
+    let l = randomLine();
+    if (!validLineByMode(l, mode)) { attempts++; continue; }
+
+    // overlap z moją linią
+    if (overlap(myLine, l) > maxOverlapWithMy) { attempts++; continue; }
+
+    // overlap z innymi hedge
+    if (lines.slice(1).some(ex => overlap(ex, l) > maxOverlapBetweenHedge)) {
+      attempts++; continue;
+    }
+
+    lines.push(l);
+  }
+
+  lastGenerated = lines;
+  renderLines(lines, attempts, "Moje liczby + hedge");
+}
+
 
 function renderLines(lines, attempts, mode){
   const out = document.getElementById("out");
