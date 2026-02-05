@@ -1,104 +1,341 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Lotto UK 6/59 – Smart Generator</title>
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  background: #0f172a;
-  color: #e5e7eb;
-  padding: 20px;
-}
-h1 { font-size: 22px; }
-label { font-size: 16px; }
-input {
-  padding: 8px;
-  font-size: 16px;
-  width: 80px;
-}
-button {
-  padding: 10px 16px;
-  font-size: 16px;
-  margin-left: 10px;
-  cursor: pointer;
-}
-.line {
-  margin: 6px 0;
-  font-size: 18px;
-}
-.footer {
-  margin-top: 20px;
-  font-size: 12px;
-  opacity: 0.7;
-}
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    background: #0f172a;
+    color: #e5e7eb;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin: 0 0 12px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin: 10px 0; }
+  label { font-size: 14px; opacity: 0.9; display: block; margin-bottom: 6px; }
+  input, select {
+    padding: 10px;
+    font-size: 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(229,231,235,0.15);
+    background: rgba(15,23,42,0.6);
+    color: #e5e7eb;
+    outline: none;
+  }
+  input { width: 110px; }
+  select { min-width: 200px; }
+  button {
+    padding: 10px 14px;
+    font-size: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(229,231,235,0.15);
+    background: rgba(255,255,255,0.06);
+    color: #e5e7eb;
+    cursor: pointer;
+  }
+  button.primary { background: rgba(16,185,129,0.18); }
+  button.danger { background: rgba(239,68,68,0.15); }
+  .panel {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(229,231,235,0.12);
+    background: rgba(255,255,255,0.03);
+  }
+  .line { margin: 6px 0; font-size: 18px; }
+  .muted { opacity: 0.75; font-size: 12px; margin-top: 12px; }
+  .split { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
+  @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+  .saved-item {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(229,231,235,0.12);
+    background: rgba(0,0,0,0.12);
+    margin: 8px 0;
+  }
+  .saved-item code { font-size: 14px; }
 </style>
 </head>
 <body>
 
 <h1>🎯 Lotto UK 6/59 – Smart Generator</h1>
 
-<label>Ile linii?</label>
-<input type="number" id="count" value="10" min="1" max="50">
-<button onclick="generate()">Generuj</button>
+<div class="row">
+  <div>
+    <label>Ile linii?</label>
+    <input type="number" id="count" value="10" min="1" max="50" />
+  </div>
 
-<div id="out"></div>
+  <div>
+    <label>Tryb</label>
+    <select id="mode">
+      <option value="balanced">Balanced (domyślny)</option>
+      <option value="antiBirthday">Anti-Birthday (mniej dzielenia)</option>
+      <option value="maxSpread">Max Spread (minimalny overlap)</option>
+    </select>
+  </div>
 
-<div class="footer">
-Offline • Bez kont • Lokalnie na Twoim urządzeniu
+  <button class="primary" onclick="generate()">Generuj</button>
+  <button onclick="copyLines()">Kopiuj</button>
+  <button onclick="saveCurrent()">Zapisz</button>
+</div>
+
+<div class="split">
+  <div class="panel">
+    <div id="out" class="muted">Kliknij „Generuj”.</div>
+    <div class="muted">
+      Uwaga: to nie przewiduje losowań — optymalizuje układ i unika typowych schematów.
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>⭐ Zapisane</b>
+    <div id="saved"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="danger" onclick="clearSaved()">Wyczyść zapisane</button>
+    </div>
+  </div>
 </div>
 
 <script>
-function randomLine() {
-  let set = new Set();
-  while (set.size < 6) {
-    set.add(Math.floor(Math.random() * 59) + 1);
-  }
-  return [...set].sort((a, b) => a - b);
+/** ====== Core helpers ====== **/
+const N = 59;
+
+function randomInt1toN() {
+  return Math.floor(Math.random() * N) + 1;
 }
 
-function validLine(line) {
-  let high = line.filter(n => n > 31).length;
-  if (high < 3) return false;
+function randomLine() {
+  const set = new Set();
+  while (set.size < 6) set.add(randomInt1toN());
+  return [...set].sort((a,b)=>a-b);
+}
 
-  for (let i = 0; i < line.length - 2; i++) {
-    if (line[i+1] === line[i] + 1 && line[i+2] === line[i] + 2)
-      return false;
+function sum(line) { return line.reduce((a,b)=>a+b,0); }
+
+function has3Consecutive(line) {
+  for (let i=0;i<line.length-2;i++){
+    if (line[i+1] === line[i]+1 && line[i+2] === line[i]+2) return true;
+  }
+  return false;
+}
+
+function overlap(a,b){
+  let c=0;
+  for (const x of a) if (b.includes(x)) c++;
+  return c;
+}
+
+function spreadScore(line){
+  // większy rozrzut = lepiej (różnice + min/max)
+  const diffs = [];
+  for (let i=1;i<line.length;i++) diffs.push(line[i]-line[i-1]);
+  const min = line[0], max = line[5];
+  return (max - min) + diffs.reduce((a,b)=>a+b,0);
+}
+
+/** ====== Mode rules ====== **/
+function validLineByMode(line, mode){
+  // wspólne filtry (sensowne, nie magiczne)
+  if (has3Consecutive(line)) return false;
+
+  const s = sum(line);
+  // widełki sumy (odcina skrajności typu same niskie albo same wysokie)
+  if (s < 120 || s > 230) return false;
+
+  if (mode === "balanced") {
+    // lekka kontrola rozkładu: 2–4 liczb > 31
+    const high = line.filter(n => n > 31).length;
+    if (high < 2 || high > 4) return false;
+    return true;
   }
 
-  let sum = line.reduce((a, b) => a + b, 0);
-  if (sum < 120 || sum > 230) return false;
+  if (mode === "antiBirthday") {
+    // cel: mniej dzielenia puli → więcej >31
+    const high = line.filter(n => n > 31).length;
+    if (high < 3) return false;
+
+    // unikaj "urodzinowego" skupienia: max 3 liczby <=31
+    const low = 6 - high;
+    if (low > 3) return false;
+
+    return true;
+  }
+
+  if (mode === "maxSpread") {
+    // cel: rozrzut i różnorodność
+    const high = line.filter(n => n > 31).length;
+    if (high < 2) return false;
+
+    // wymuś większy rozrzut pokazowo
+    if ((line[5] - line[0]) < 28) return false;
+
+    return true;
+  }
 
   return true;
 }
 
-function overlap(a, b) {
-  return a.filter(x => b.includes(x)).length;
-}
+/** ====== Generation engine ====== **/
+let lastGenerated = [];
 
-function generate() {
-  const target = +document.getElementById("count").value;
+function generate(){
+  const target = Math.max(1, Math.min(50, +document.getElementById("count").value || 10));
+  const mode = document.getElementById("mode").value;
+
   const lines = [];
   let attempts = 0;
 
-  while (lines.length < target && attempts < 20000) {
-    let l = randomLine();
-    if (!validLine(l)) { attempts++; continue; }
+  // overlap threshold zależny od trybu i liczby linii
+  // (im więcej linii, tym ciężej, więc trochę luzujemy)
+  let maxOverlap = 2;
+  if (mode === "maxSpread") maxOverlap = 1;
+  if (target >= 20) maxOverlap = Math.min(2, maxOverlap + 1);
 
-    if (lines.some(existing => overlap(existing, l) > 2)) {
+  while (lines.length < target && attempts < 50000) {
+    let l = randomLine();
+    if (!validLineByMode(l, mode)) { attempts++; continue; }
+
+    if (lines.some(ex => overlap(ex, l) > maxOverlap)) {
       attempts++; continue;
+    }
+
+    // w maxSpread dodatkowo wybieramy lepsze linie (prosty "best-of")
+    if (mode === "maxSpread") {
+      // spróbuj znaleźć lepszy kandydat w krótkiej pętli
+      let best = l;
+      let bestScore = spreadScore(l);
+      for (let t=0; t<12; t++){
+        const cand = randomLine();
+        if (!validLineByMode(cand, mode)) continue;
+        if (lines.some(ex => overlap(ex, cand) > maxOverlap)) continue;
+        const sc = spreadScore(cand);
+        if (sc > bestScore) { best = cand; bestScore = sc; }
+      }
+      l = best;
     }
 
     lines.push(l);
   }
 
-  const out = document.getElementById("out");
-  out.innerHTML = "";
-  lines.forEach((l, i) => {
-    out.innerHTML += `<div class="line">${i+1}. ${l.join(" – ")}</div>`;
-  });
+  lastGenerated = lines;
+  renderLines(lines, attempts, mode);
 }
+
+function renderLines(lines, attempts, mode){
+  const out = document.getElementById("out");
+  if (!lines.length){
+    out.innerHTML = `<div class="muted">Nie udało się wygenerować linii (spróbuj mniejszą liczbę linii albo inny tryb). Próby: ${attempts}</div>`;
+    return;
+  }
+
+  const modeName = ({
+    balanced: "Balanced",
+    antiBirthday: "Anti-Birthday",
+    maxSpread: "Max Spread"
+  })[mode] || mode;
+
+  out.innerHTML = `
+    <div class="muted">Tryb: <b>${modeName}</b> • Linie: <b>${lines.length}</b> • Próby: ${attempts}</div>
+    ${lines.map((l,i)=>`<div class="line">${i+1}. ${l.join(" – ")}</div>`).join("")}
+  `;
+}
+
+/** ====== Copy ====== **/
+async function copyLines(){
+  if (!lastGenerated.length) { alert("Najpierw wygeneruj linie."); return; }
+  const text = lastGenerated.map(l => l.join("-")).join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Skopiowano do schowka ✅");
+  } catch(e){
+    // fallback: prompt
+    window.prompt("Skopiuj ręcznie:", text);
+  }
+}
+
+/** ====== Save (localStorage) ====== **/
+const LS_KEY = "lotto_saved_lines_v1";
+
+function loadSaved(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeSaved(items){
+  localStorage.setItem(LS_KEY, JSON.stringify(items));
+}
+
+function saveCurrent(){
+  if (!lastGenerated.length) { alert("Najpierw wygeneruj linie."); return; }
+  const mode = document.getElementById("mode").value;
+  const stamp = new Date().toISOString().slice(0,19).replace("T"," ");
+  const payload = {
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(),
+    createdAt: stamp,
+    mode,
+    lines: lastGenerated
+  };
+
+  const items = loadSaved();
+  items.unshift(payload);
+  // limit np. 20 zapisów
+  storeSaved(items.slice(0,20));
+  renderSaved();
+  alert("Zapisano ⭐");
+}
+
+function deleteSaved(id){
+  const items = loadSaved().filter(x => x.id !== id);
+  storeSaved(items);
+  renderSaved();
+}
+
+function clearSaved(){
+  if (!confirm("Wyczyścić wszystkie zapisane zestawy?")) return;
+  localStorage.removeItem(LS_KEY);
+  renderSaved();
+}
+
+function renderSaved(){
+  const wrap = document.getElementById("saved");
+  const items = loadSaved();
+
+  if (!items.length){
+    wrap.innerHTML = `<div class="muted">Brak zapisanych zestawów.</div>`;
+    return;
+  }
+
+  const modeName = (m) => ({
+    balanced: "Balanced",
+    antiBirthday: "Anti-Birthday",
+    maxSpread: "Max Spread"
+  })[m] || m;
+
+  wrap.innerHTML = items.map(item => {
+    const oneLine = item.lines.map(l => l.join("-")).join(" | ");
+    return `
+      <div class="saved-item">
+        <div>
+          <div style="font-size:12px; opacity:.8">${item.createdAt} • ${modeName(item.mode)}</div>
+          <code>${oneLine}</code>
+        </div>
+        <button class="danger" onclick="deleteSaved('${item.id}')">Usuń</button>
+      </div>
+    `;
+  }).join("");
+}
+
+renderSaved();
 </script>
 
 </body>
