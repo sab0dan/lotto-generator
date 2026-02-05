@@ -83,12 +83,14 @@
   <button class="primary" onclick="generate()">Generuj</button>
   <button onclick="copyLines()">Kopiuj</button>
   <button onclick="saveCurrent()">Zapisz</button>
+  <button onclick="loadMyNumbers()">Wczytaj moje liczby</button>
 </div>
-  <div class="panel" style="margin-top:12px">
+
+<div class="panel" style="margin-top:12px">
   <b>ℹ️ Opis trybów</b>
   <ul style="margin:8px 0 0 18px; line-height:1.5">
     <li>
-      <b>Balanced</b> – zrównoważony tryb domyślny. 
+      <b>Balanced</b> – zrównoważony tryb domyślny.
       Losowe linie z sensownym rozkładem liczb, bez popularnych schematów.
       Najlepszy wybór do codziennej gry.
     </li>
@@ -106,10 +108,9 @@
   </div>
 </div>
 
-
 <div class="split">
   <div class="panel">
-    <div id="out" class="muted">Kliknij „Generuj”.</div>
+    <div id="out" class="muted">Kliknij „Generuj” albo „Wczytaj moje liczby”.</div>
     <div class="muted">
       Uwaga: to nie przewiduje losowań — optymalizuje układ i unika typowych schematów.
     </div>
@@ -127,6 +128,9 @@
 <script>
 /** ====== Core helpers ====== **/
 const N = 59;
+
+/* === Moje liczby (minimalnie przebudowane) === */
+const MY_NUMBERS = [5, 19, 21, 33, 34, 52];
 
 function randomInt1toN() {
   return Math.floor(Math.random() * N) + 1;
@@ -154,7 +158,6 @@ function overlap(a,b){
 }
 
 function spreadScore(line){
-  // większy rozrzut = lepiej (różnice + min/max)
   const diffs = [];
   for (let i=1;i<line.length;i++) diffs.push(line[i]-line[i-1]);
   const min = line[0], max = line[5];
@@ -163,26 +166,21 @@ function spreadScore(line){
 
 /** ====== Mode rules ====== **/
 function validLineByMode(line, mode){
-  // wspólne filtry (sensowne, nie magiczne)
   if (has3Consecutive(line)) return false;
 
   const s = sum(line);
-  // widełki sumy (odcina skrajności typu same niskie albo same wysokie)
   if (s < 120 || s > 230) return false;
 
   if (mode === "balanced") {
-    // lekka kontrola rozkładu: 2–4 liczb > 31
     const high = line.filter(n => n > 31).length;
     if (high < 2 || high > 4) return false;
     return true;
   }
 
   if (mode === "antiBirthday") {
-    // cel: mniej dzielenia puli → więcej >31
     const high = line.filter(n => n > 31).length;
     if (high < 3) return false;
 
-    // unikaj "urodzinowego" skupienia: max 3 liczby <=31
     const low = 6 - high;
     if (low > 3) return false;
 
@@ -190,11 +188,9 @@ function validLineByMode(line, mode){
   }
 
   if (mode === "maxSpread") {
-    // cel: rozrzut i różnorodność
     const high = line.filter(n => n > 31).length;
     if (high < 2) return false;
 
-    // wymuś większy rozrzut pokazowo
     if ((line[5] - line[0]) < 28) return false;
 
     return true;
@@ -213,8 +209,6 @@ function generate(){
   const lines = [];
   let attempts = 0;
 
-  // overlap threshold zależny od trybu i liczby linii
-  // (im więcej linii, tym ciężej, więc trochę luzujemy)
   let maxOverlap = 2;
   if (mode === "maxSpread") maxOverlap = 1;
   if (target >= 20) maxOverlap = Math.min(2, maxOverlap + 1);
@@ -227,9 +221,7 @@ function generate(){
       attempts++; continue;
     }
 
-    // w maxSpread dodatkowo wybieramy lepsze linie (prosty "best-of")
     if (mode === "maxSpread") {
-      // spróbuj znaleźć lepszy kandydat w krótkiej pętli
       let best = l;
       let bestScore = spreadScore(l);
       for (let t=0; t<12; t++){
@@ -247,6 +239,11 @@ function generate(){
 
   lastGenerated = lines;
   renderLines(lines, attempts, mode);
+}
+
+function loadMyNumbers() {
+  lastGenerated = [MY_NUMBERS.slice().sort((a,b)=>a-b)];
+  renderLines(lastGenerated, 0, "Moje liczby");
 }
 
 function renderLines(lines, attempts, mode){
@@ -276,7 +273,6 @@ async function copyLines(){
     await navigator.clipboard.writeText(text);
     alert("Skopiowano do schowka ✅");
   } catch(e){
-    // fallback: prompt
     window.prompt("Skopiuj ręcznie:", text);
   }
 }
@@ -302,7 +298,7 @@ function saveCurrent(){
   const mode = document.getElementById("mode").value;
   const stamp = new Date().toISOString().slice(0,19).replace("T"," ");
   const payload = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(),
+    id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
     createdAt: stamp,
     mode,
     lines: lastGenerated
@@ -310,7 +306,6 @@ function saveCurrent(){
 
   const items = loadSaved();
   items.unshift(payload);
-  // limit np. 20 zapisów
   storeSaved(items.slice(0,20));
   renderSaved();
   alert("Zapisano ⭐");
